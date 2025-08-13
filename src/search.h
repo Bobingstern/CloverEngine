@@ -1002,6 +1002,7 @@ void SearchThread::iterative_deepening()
 
     MoveList moves;
     int nr_moves = board.gen_legal_moves<MOVEGEN_ALL>(moves);
+    int baseEval = evaluate(board, NN);
 
     if (nr_moves)
     {
@@ -1071,10 +1072,10 @@ void SearchThread::iterative_deepening()
                 window += window * AspirationWindowExpandMargin / 100;
             }
         }
-
         if (main_thread() && !must_stop())
         {
-            double scoreChange = 1.0, bestMoveStreak = 1.0, nodesSearchedPercentage = 1.0;
+
+            double scoreChange = 1.0, bestMoveStreak = 1.0, nodesSearchedPercentage = 1.0, complexity = 0, complexityScale = 1;
             if (id_depth >= TimeManagerMinDepth)
             {
                 scoreChange = std::clamp<double>(
@@ -1089,8 +1090,14 @@ void SearchThread::iterative_deepening()
                     TimeManagerBestMoveMax -
                     TimeManagerbestMoveStep *
                         std::min(10, best_move_cnt); /// adjust time based on how long the best move was the same
+
+                if (abs(scores[1]) < MATE)
+                    complexity = 0.82 * abs(baseEval - scores[1]) * std::log(double(id_depth));
+
+                complexityScale = std::max(0.76 + std::clamp(complexity, 0.0, 200.0) / 391.0, 1.0);
+
             }
-            info.set_recommended_soft_limit(scoreChange * bestMoveStreak * nodesSearchedPercentage);
+            info.set_recommended_soft_limit(scoreChange * bestMoveStreak * nodesSearchedPercentage * complexityScale);
             last_root_score = root_scores[1];
             last_best_move = best_moves[1];
         }
